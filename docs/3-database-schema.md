@@ -1,14 +1,10 @@
-<think>我明白了，用户要求我进一步完善3-database-schema.md文档，特别是添加以下几方面的内容：
-
-1. SQLAlchemy ORM映射示例：为关键表如dim_players和fact_player_stats提供SQLAlchemy模型定义
-2. SQLAlchemy关系映射：说明如何在SQLAlchemy中定义表之间的关系(一对多、多对多)
-3. 索引使用监控：在5.5节中添加如何通过pg_stat_user_indexes视图监控索引使用情况
-
-我将在文档中添加这些内容来进一步增强对PostgreSQL和SQLAlchemy整合的描述。</think># NBA Fantasy Analytics Platform: 数据模型设计
+# NBA Fantasy Analytics Platform: 数据模型设计
 
 ## 1. 数据模型概述
 
-本文档描述了NBA Fantasy Analytics Platform的数据模型设计。系统采用星型模式(Star Schema)进行设计，包括维度表(Dimensions)和事实表(Facts)，以支持高效的分析查询和报表生成。
+本文档描述了NBA Fantasy Analytics Platform的数据模型设计。系统采用星型模式(Star Schema)进行设计，包括维度表(Dimensions)和事实表(Facts)，以支持高效的分析查询和报表生成。本文档是[架构设计](1-architecture.md)中提到的数据库层的详细说明。
+
+> **文档关系**: 本数据模型设计文档详细展示了[架构设计](1-architecture.md)中概述的数据存储架构。ETL流程及相关数据处理细节请参考[ETL Pipeline文档](2-ETL-Pipeline.md)，缓存策略和物化视图设计请参考[缓存策略文档](4-caching-strategy.md)。
 
 ### 1.1 设计原则
 
@@ -124,6 +120,8 @@
 - **主要用途**: 数据处理监控和审计
 - **更新频率**: 每次ETL运行
 - **估计记录数**: ~10/天
+
+> **注意**: 关于ETL流程的详细信息和数据处理逻辑，请参考[ETL Pipeline文档](2-ETL-Pipeline.md)。
 
 #### data_versions
 - **描述**: 管理数据版本和变更历史
@@ -637,6 +635,8 @@ $$ LANGUAGE plpgsql;
 SELECT cron.schedule('0 0 15 * *', 'SELECT create_next_month_partition()');
 ```
 
+> **注意**: 有关pg_cron的部署和配置详情，请参考[运维策略文档](5-operations.md)中的PostgreSQL维护部分。
+
 ### 6.4 分区维护
 
 - **归档策略**: 历史分区自动移动到低成本存储
@@ -680,6 +680,8 @@ CREATE TABLESPACE historical_data LOCATION '/path/to/historical_storage';
 -- 移动过时分区到历史表空间
 ALTER TABLE fact_player_game_stats_y2020m01 SET TABLESPACE historical_data;
 ```
+
+> **注意**: 关于PostgreSQL物化视图的创建和刷新策略，请参考[缓存策略文档](4-caching-strategy.md)。数据库自动维护的详细计划请参考[运维策略文档](5-operations.md)。
 
 ## 8. SQLAlchemy ORM映射与关系管理
 
@@ -728,116 +730,28 @@ class Player(Base):
     @property
     def full_name(self):
         return f"{self.first_name} {self.last_name}"
+```
 
+> **注意**: 完整的ORM模型定义可在源代码仓库的`src/db/models`目录中找到。ETL流程中的具体使用请参考[ETL Pipeline文档](2-ETL-Pipeline.md)。
 
-class Team(Base):
-    """球队维度表ORM映射"""
-    __tablename__ = 'dim_teams'
-    
-    team_id = Column(Integer, primary_key=True)
-    team_code = Column(String, unique=True, nullable=False)
-    team_name = Column(String, nullable=False)
-    conference = Column(String)
-    division = Column(String)
-    arena = Column(String)
-    head_coach = Column(String)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-    data_source = Column(String)
-    
-    # 定义关系
-    team_stats = relationship("TeamStats", back_populates="team")
-    team_game_stats = relationship("TeamGameStats", back_populates="team")
-    player_teams = relationship("PlayerTeam", back_populates="team")
-    # 定义与比赛的关系 - 主场和客场
-    home_games = relationship("Game", foreign_keys="Game.home_team_id", back_populates="home_team")
-    away_games = relationship("Game", foreign_keys="Game.away_team_id", back_populates="away_team")
-    
-    def __repr__(self):
-        return f"<Team(id={self.team_id}, name={self.team_name})>"
+## 9. 小结与未来扩展
 
+本数据模型设计文档详细描述了NBA Fantasy Analytics Platform的数据结构，利用PostgreSQL的高级特性实现了一个高效、可扩展的数据存储层。通过星型模式设计、优化的索引策略、表分区和适当的存储参数，该模型能够支持高效的分析查询和报表生成。
 
-class Season(Base):
-    """赛季维度表ORM映射"""
-    __tablename__ = 'dim_seasons'
-    
-    season_id = Column(Integer, primary_key=True)
-    season_name = Column(String, unique=True, nullable=False)
-    start_date = Column(Date, nullable=False)
-    end_date = Column(Date, nullable=False)
-    regular_season_end = Column(Date)
-    playoffs_end = Column(Date)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-    
-    # 定义关系
-    games = relationship("Game", back_populates="season")
-    player_stats = relationship("PlayerStats", back_populates="season")
-    team_stats = relationship("TeamStats", back_populates="season")
-    
-    def __repr__(self):
-        return f"<Season(id={self.season_id}, name={self.season_name})>"
+### 9.1 未来扩展方向
 
+1. **增加更多指标维度**:
+   - 添加更多高级统计指标以支持深入分析
+   - 支持更多Fantasy比赛规则和评分系统
 
-class Game(Base):
-    """比赛维度表ORM映射"""
-    __tablename__ = 'dim_games'
-    
-    game_id = Column(Integer, primary_key=True)
-    game_external_id = Column(String, unique=True, nullable=False)
-    season_id = Column(Integer, ForeignKey('dim_seasons.season_id'), nullable=False)
-    home_team_id = Column(Integer, ForeignKey('dim_teams.team_id'), nullable=False)
-    away_team_id = Column(Integer, ForeignKey('dim_teams.team_id'), nullable=False)
-    game_date = Column(Date, nullable=False)
-    is_regular_season = Column(Boolean, default=True)
-    home_score = Column(Integer)
-    away_score = Column(Integer)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-    
-    # 定义关系
-    season = relationship("Season", back_populates="games")
-    home_team = relationship("Team", foreign_keys=[home_team_id], back_populates="home_games")
-    away_team = relationship("Team", foreign_keys=[away_team_id], back_populates="away_games")
-    player_game_stats = relationship("PlayerGameStats", back_populates="game")
-    team_game_stats = relationship("TeamGameStats", back_populates="game")
-    matchup_ratings = relationship("MatchupRating", back_populates="game")
-    fantasy_projections = relationship("FantasyProjection", back_populates="game")
-    
-    def __repr__(self):
-        return f"<Game(id={self.game_id}, date={self.game_date}, {self.away_team_id}@{self.home_team_id})>"
+2. **扩展PostgreSQL特性**:
+   - 进一步利用PostgreSQL的时序数据功能
+   - 扩展JSON功能以存储更复杂的非结构化数据
 
+3. **优化大规模数据**:
+   - 为长期历史数据实施分层存储策略
+   - 评估列式存储扩展用于分析优化
 
-class PlayerStats(Base):
-    """球员赛季统计表ORM映射"""
-    __tablename__ = 'fact_player_stats'
-    
-    stat_id = Column(Integer, primary_key=True)
-    player_id = Column(Integer, ForeignKey('dim_players.player_id'), nullable=False)
-    season_id = Column(Integer, ForeignKey('dim_seasons.season_id'), nullable=False)
-    team_id = Column(Integer, ForeignKey('dim_teams.team_id'))
-    data_version_id = Column(Integer, ForeignKey('data_versions.version_id'))
-    
-    games_played = Column(Float)
-    games_started = Column(Float)
-    minutes_per_game = Column(Float)
-    points_per_game = Column(Float)
-    rebounds_per_game = Column(Float)
-    assists_per_game = Column(Float)
-    steals_per_game = Column(Float)
-    blocks_per_game = Column(Float)
-    turnovers_per_game = Column(Float)
-    fg_percentage = Column(Float)
-    ft_percentage = Column(Float)
-    three_percentage = Column(Float)
-    true_shooting_pct = Column(Float)
-    usage_rate = Column(Float)
-    fantasy_points = Column(Float)
-    
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-    
-    # 定义关系
-    player = relationship("Player", back_populates="player_stats")
-    season = relationship("Season", back_populates="player_stats")
-    team = relationship("Team", back_populates="
+4. **集成机器学习**:
+   - 添加用于存储模型特征的表结构
+   - 创建模型评估和验证的结构化存储

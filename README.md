@@ -15,33 +15,43 @@ NBA Fantasy Analytics Platform是一个端到端的数据分析平台，为Fanta
 
 ## 技术栈选择
 
-经过评估，本项目采用以下核心技术：
+本项目采用以下核心技术：
 
-- **数据库**: PostgreSQL - 选择原因包括开源免费、强大的分析能力、良好的扩展性以及与AWS的兼容性
-- **ORM**: SQLAlchemy - Python生态系统中最强大的ORM，提供灵活的数据建模和查询能力
-- **后端语言**: Python - 强大的数据处理和机器学习能力，广泛的库和工具支持
-- **ETL工具**: Apache Airflow - 强大的工作流编排工具，适合复杂ETL流程管理
-- **API框架**: FastAPI - 高性能异步Python API框架，具有自动文档生成功能
-- **机器学习**: Scikit-learn, PyTorch - 行业标准的ML工具，适合不同复杂度的模型
-- **可视化**: Power BI - 功能强大的BI工具，通过PostgreSQL连接器支持与我们的数据库集成
-- **云平台**: AWS - 提供灵活可扩展的服务，包括EC2、RDS、S3等
-- **缓存**: Redis - 高性能内存数据库，用于缓存和会话管理
-- **容器化**: Docker & Docker Compose - 简化开发和部署流程
-- **监控**: Prometheus & Grafana - 全面的系统监控和可视化
-- **CI/CD**: GitHub Actions - 自动化测试和部署流程
+- **数据库**: PostgreSQL - 强大的分析能力和开源特性，支持复杂数据类型和查询需求
+- **ORM**: SQLAlchemy - Python生态系统中最成熟的ORM，提供灵活的数据建模和查询能力
+- **后端语言**: Python - 强大的数据处理和机器学习生态系统，广泛的库和工具支持
+- **ETL工具**: Apache Airflow - 工作流编排工具，满足复杂ETL流程需求
+- **API框架**: FastAPI - 高性能异步Python API框架，自动文档生成和类型验证
+- **机器学习**: Scikit-learn, PyTorch - 机器学习和深度学习模型的开发和部署
+- **可视化**: Power BI - 商业智能工具，通过PostgreSQL连接器支持与我们的数据库集成
+- **云平台**: AWS - 提供弹性可扩展的服务，包括EC2、RDS、S3等核心组件
+- **缓存**: Memcached - 轻量级、高性能的分布式内存缓存系统，用于应用级缓存
+- **容器化**: Docker & Docker Compose - 支持一致的开发和生产环境
+- **CI/CD**: GitHub Actions - 自动化测试和部署流程，与GitHub仓库集成
+
+每项技术选择的详细理由、考虑的替代方案以及具体实施细节，请参阅[技术栈决策文档](docs/6-tech-stack-decisions.md)。
 
 ## 设计文档导航
 
-本代码库包含以下设计文档，详细描述了平台的各个方面：
+本项目采用结构化文档策略，每个文档都有明确的焦点和责任范围，共同构成完整的系统设计：
 
-1. [架构设计](docs/diagrams/1-architecture.md)
-   - 系统整体架构和组件关系
-   - 技术栈选择与决策理由
-   - AWS部署模型和服务通信
-   - API设计和端点规范
-   - 扩展性、性能优化和安全考虑
+0. [需求文档](docs/0-requirements.md)
+   - 项目背景与目标
+   - 功能需求（数据采集、处理存储、分析预测、用户界面、API服务）
+   - 非功能性需求（性能、安全、可扩展性、可维护性）
+   - 用户场景与使用案例
+   - 项目边界与假设
+   - 验收标准
+   - 交付成果与项目规划
 
-2. [ETL流程](docs/diagrams/2-ETL-Pipeline.md)
+1. [架构设计](docs/1-architecture.md)
+   - 系统整体架构和组件关系的高层概述
+   - 分层设计与数据流向
+   - 各层次功能和交互的总体视图
+   - 系统限制与扩展性考虑
+   - 引导读者到其他文档获取详细信息
+
+2. [ETL流程](docs/2-ETL-Pipeline.md)
    - 数据提取策略和方法
    - 数据转换逻辑和流程
    - PostgreSQL数据加载和SQLAlchemy集成
@@ -50,38 +60,58 @@ NBA Fantasy Analytics Platform是一个端到端的数据分析平台，为Fanta
    - 监控与日志设计
    - 灾难恢复和容错机制
 
-3. [数据模型](docs/diagrams/3-database-schema.md)
-   - 星型模式数据设计
+3. [数据模型](docs/3-database-schema.md)
+   - PostgreSQL星型模式数据设计
    - 维度表和事实表详细结构
-   - PostgreSQL特有索引策略
-   - 分区方案和自动化维护
-   - 数据血缘和版本控制
+   - 索引和分区策略优化
    - SQLAlchemy ORM映射
-   - 存储估算和优化
+   - 数据版本控制和血缘追踪
+   - 存储估算和优化方案
+   - 未来扩展方向
 
-4. [缓存策略](docs/diagrams/4-caching-strategy.md)
+4. [缓存策略](docs/4-caching-strategy.md)
    - 多层缓存架构设计
-   - Redis应用级缓存实现
+   - Memcached应用级缓存实现
    - SQLAlchemy查询缓存集成
    - PostgreSQL物化视图策略
    - 缓存失效和监控方案
-   - 安全考虑和灾难恢复
+   - 安全考虑和恢复策略
+   - 性能分析和优化指标
 
-5. [运维策略](docs/diagrams/5-operations.md)
+5. [运维策略](docs/5-operations.md)
    - 环境分离和配置管理
-   - PostgreSQL高可用架构
-   - 监控告警和日志管理
+   - 高可用架构设计与实现
+   - 全面的监控告警系统
    - 安全策略和访问控制
-   - 部署流程和变更管理
-   - PostgreSQL备份恢复和维护
-   - 成本优化和持续改进
+   - CI/CD自动化部署流程
+   - 备份恢复与灾难应对
+   - 成本优化与资源规划
+   - 系统持续改进策略
 
-6. [实施路线图](docs/diagrams/implementation-roadmap.md)
+6. [技术栈决策](docs/6-tech-stack-decisions.md)
+   - 各技术选择的详细理由
+   - 替代方案分析与比较
+   - 技术兼容性和集成考虑
+   - 版本选择和兼容性管理
+   - 技术栈演进路径
+
+7. [实施路线图](docs/7-implementation-roadmap.md)
    - 项目阶段划分与时间线
    - 各阶段详细任务和里程碑
    - 资源需求和团队组成
    - 风险分析与缓解策略
    - 成功指标和后续规划
+
+8. [开发规范与Git工作流](docs/8-development-guidelines.md)
+   - 代码风格与格式规范
+   - Git分支管理策略和工作流程
+   - 提交消息规范
+   - 代码审查流程
+   - 测试要求
+   - 本地开发环境配置
+   - 文档更新要求
+   - 版本控制策略
+   - 依赖管理
 
 ## 代码仓库结构
 
@@ -91,7 +121,7 @@ nba-fantasy-analytics-platform/
 │   └── workflows/              # CI/CD工作流定义
 ├── docs/                       # 文档
 │   ├── api/                    # API文档
-│   └── diagrams/               # 设计文档
+│   └── diagrams/               # 设计图表
 ├── src/                        # 源代码
 │   ├── api/                    # FastAPI应用
 │   │   ├── routers/            # API路由
@@ -144,10 +174,10 @@ nba-fantasy-analytics-platform/
 
 ### 系统要求
 
-- Python 3.10+
+- Python 3.10+ 
 - PostgreSQL 14.0+
-- Redis 6.0+
-- Docker & Docker Compose (推荐)
+- Memcached 1.6+
+- Docker & Docker Compose
 
 ### 本地开发环境设置
 
@@ -178,7 +208,7 @@ nba-fantasy-analytics-platform/
 
 5. 使用Docker启动依赖服务
    ```bash
-   docker-compose up -d db redis
+   docker-compose up -d db memcached
    ```
 
 6. 运行数据库迁移
@@ -200,7 +230,7 @@ nba-fantasy-analytics-platform/
 docker-compose up -d
 ```
 
-这将启动所有服务，包括API、PostgreSQL数据库、Redis缓存和Airflow调度器。
+这将启动所有服务，包括API、PostgreSQL数据库、Memcached缓存和Airflow调度器。
 
 ## 数据库迁移
 

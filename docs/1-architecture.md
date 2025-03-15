@@ -7,10 +7,10 @@ NBA Fantasy Analytics Platform旨在为Fantasy篮球玩家提供数据驱动的�
 - **端到端数据流**: 从数据采集、ETL处理、高级分析到可视化呈现的完整流程
 - **可伸缩性**: 利用AWS云服务提供灵活、可伸缩的部署选项
 - **分析能力**: 整合机器学习和数据挖掘技术提供预测和优化功能
-- **技能展示**: 选择符合就业市场需求的技术栈(Python, SQL, Power BI)
+- **技能展示**: 选择符合就业市场需求的技术栈(Python, PostgreSQL, PyTorch, Power BI)
 - **实用性**: 直接针对Fantasy篮球场景的具体问题提供解决方案
 
-本文档描述了NBA Fantasy Analytics Platform的整体架构设计，包括系统组件、技术选择和部署模型。
+本文档描述了NBA Fantasy Analytics Platform的整体架构设计，包括系统组件、技术选择和部署模型的高层概述。详细的设计内容在各专项文档中进一步展开。
 
 ## 1. 系统架构概览
 
@@ -32,7 +32,7 @@ flowchart TD
     
     subgraph "Analytics Layer"
         E --> G1[Python with Scikit-learn]
-        E --> G2[Python with TensorFlow]
+        E --> G2[Python with PyTorch]
         E --> H[Python Analytics]
         G1 --> I[RESTful API on EC2]
         G2 --> I
@@ -51,7 +51,7 @@ flowchart TD
         M --> I
         N[RDS Multi-AZ] --> E
         O[S3 Storage] --> B
-        P[ElastiCache Redis]
+        P[ElastiCache Memcached] <--> I
         Q[Application Load Balancer] --> K
         Q --> L
     end
@@ -68,6 +68,8 @@ flowchart TD
         F --> U
     end
 ```
+
+> **注意**: 详细的数据流程和ETL管道设计请参阅 [ETL Pipeline文档](2-ETL-Pipeline.md)。
 
 ## 2. 系统层次架构
 
@@ -98,11 +100,11 @@ flowchart TD
 - **目的**: 实现预测和高级分析功能
 - **组件**:
   - 机器学习模型 (Scikit-learn)
-  - 深度学习模型 (TensorFlow)
+  - 深度学习模型 (PyTorch)
   - RESTful API服务
 - **技术**:
-  - Python (`scikit-learn`, `tensorflow`)
-  - `FastAPI`/`Flask`
+  - Python (`scikit-learn`, `pytorch`)
+  - `FastAPI`
   - AWS EC2
 
 ### 2.4 展示层 (Presentation Layer)
@@ -113,41 +115,39 @@ flowchart TD
   - API端点
 - **技术**:
   - Power BI
-  - React/Angular前端
+  - React前端
   - REST API
 
 ## 3. 技术栈选择
 
-### 3.1 核心技术栈
+系统采用以下核心技术栈，详细的技术选择理由、替代方案分析和具体实施细节请参阅 [技术栈决策文档](6-tech-stack-decisions.md)。
 
-| 组件 | 技术选择 | 选择理由 |
-|------|----------|----------|
-| 数据库 | PostgreSQL | 强大的分析功能，开源免费，优秀的扩展性和JSON支持 |
-| ORM层 | SQLAlchemy | Python标准ORM，强大的查询构建和会话管理，完善的PostgreSQL特性支持 |
-| ETL工具 | Python (pandas, numpy) | 灵活性高，广泛应用于数据工程领域 |
-| 机器学习 | Scikit-learn, TensorFlow | 行业标准ML库，适合不同复杂度的模型 |
-| 可视化 | Power BI | 强大的BI工具，符合求职技能要求 |
-| 编排 | Airflow | 行业标准的工作流编排工具 |
-| API | FastAPI | 现代、高性能的Python API框架 |
-| 前端 | React | 灵活的前端框架 |
-| 云平台 | AWS | 广泛使用的云服务提供商 |
+| 类别 | 技术选择 |
+|------|----------|
+| 数据库 | PostgreSQL |
+| ORM层 | SQLAlchemy |
+| 后端语言 | Python |
+| ETL工具 | Apache Airflow |
+| API框架 | FastAPI |
+| 机器学习框架 | Scikit-learn, PyTorch |
+| 可视化工具 | Power BI |
+| 前端框架 | React |
+| 云平台 | AWS |
+| 缓存 | Memcached |
+| 容器化 | Docker & Docker Compose |
+| CI/CD | GitHub Actions |
 
-### 3.2 AWS服务选择
-
-| 需求 | AWS服务 | 用途 |
-|------|---------|------|
-| 计算 | EC2 | 运行爬虫、ETL和API服务 |
-| 存储 | S3 | 存储原始数据和中间结果 |
-| 数据库 | RDS | 托管PostgreSQL数据库 |
-| 缓存 | ElastiCache | Redis缓存层 |
-| 负载均衡 | ALB | Web应用和API负载均衡 |
-| 监控 | CloudWatch | 服务监控和警报 |
-| 消息 | SNS | 警报通知 |
-| 计划任务 | EventBridge | 触发计划任务 |
+主要AWS服务使用:
+- EC2: 计算资源
+- RDS: PostgreSQL数据库
+- S3: 数据存储
+- ElastiCache: Memcached缓存
+- ALB: 负载均衡
+- CloudWatch: 监控和告警
 
 ## 4. 部署架构
 
-系统采用AWS云服务进行部署，利用其高可用性和弹性扩展能力。
+系统采用AWS云服务进行部署，利用其高可用性和弹性扩展能力。关于容器化和部署的详细策略请参阅 [运维策略文档](5-operations.md)。
 
 ### 4.1 网络架构
 
@@ -174,21 +174,7 @@ flowchart TD
 - 直接查询模式与导入模式选择
 - 共享服务和发布策略
 
-#### 4.4.1 PostgreSQL与Power BI连接配置
-
-- **驱动程序要求**：安装并配置PostgreSQL的ODBC驱动程序（推荐使用官方psqlODBC驱动程序）
-- **连接字符串示例**：
-  ```
-  Driver={PostgreSQL Unicode};Server=your-rds-endpoint.rds.amazonaws.com;Port=5432;Database=nba_fantasy;Uid=username;Pwd=password;
-  ```
-- **连接优化**：
-  - 配置适当的连接池大小和查询超时
-  - 使用SSL加密传输以保证安全性
-  - 为Power BI创建只读用户角色，遵循最小权限原则
-- **使用考虑**：
-  - DirectQuery模式适用于实时数据需求，但可能影响性能
-  - 导入模式适用于较静态的报表，提供更好的交互性能
-  - 使用压缩查询功能减少数据传输量
+### 4.5 部署总览图
 
 ```mermaid
 flowchart LR
@@ -206,12 +192,12 @@ flowchart LR
             
             subgraph "Private Subnet 2"
                 RDS_M[RDS PostgreSQL Primary]
-                Redis_M[Redis Primary]
+                Memcached_M[Memcached Primary]
             end
             
             subgraph "Private Subnet 3"
                 RDS_S[RDS PostgreSQL Standby]
-                Redis_S[Redis Replica]
+                Memcached_S[Memcached Replica]
             end
             
             ALB --> EC2_1
@@ -219,7 +205,7 @@ flowchart LR
             EC2_1 --> RDS_M
             EC2_2 --> RDS_M
             RDS_M --> RDS_S
-            Redis_M --> Redis_S
+            Memcached_M --> Memcached_S
         end
         
         S3[S3 Buckets]
@@ -247,177 +233,112 @@ flowchart LR
 
 - REST API作为主要服务通信方式
 - S3对象存储用于大型数据传输
-- Redis用于服务间缓存数据共享
+- Memcached用于服务间缓存数据共享
 
 ### 5.2 API设计
 
-#### 5.2.1 API规范
-- 基于OpenAPI 3.0规范定义API接口，支持自动生成API文档
-- RESTful设计原则，资源导向的端点结构
-- 版本控制策略: URL路径版本(如 `/api/v1/`)，确保向后兼容性
-- 标准化响应格式:
-  ```json
-  {
-    "status": "success|error",
-    "data": { /* 响应数据 */ },
-    "error": { "code": "ERROR_CODE", "message": "错误描述" },
-    "meta": { "pagination": {"total": 100, "page": 1, "per_page": 20}, "processing_time": 0.023 }
-  }
-  ```
-- JSON作为数据交换格式
-- JWT认证机制，支持基于角色的访问控制
+API采用RESTful设计原则，遵循以下规范：
+- 基于OpenAPI 3.0规范
+- 资源导向的端点结构
+- 版本控制策略: URL路径版本(如 `/api/v1/`)
+- 标准化响应格式
+- JSON数据交换格式
+- JWT认证机制
 
-#### 5.2.2 主要端点
-| 端点 | 方法 | 描述 | 参数 |
-|------|------|------|------|
-| /api/v1/players | GET | 获取球员列表 | team, position, season, sort, limit, page |
-| /api/v1/players/{id} | GET | 获取单个球员详情 | stats, projections, history, injuries |
-| /api/v1/players/{id}/stats | GET | 获取球员统计数据 | season, last_n_games, home_away |
-| /api/v1/teams | GET | 获取球队列表 | conference, division, season |
-| /api/v1/teams/{id}/players | GET | 获取球队球员列表 | active, position, stats |
-| /api/v1/games | GET | 获取比赛列表 | date_range, team, season |
-| /api/v1/games/{id}/stats | GET | 获取比赛统计数据 | player_stats, team_stats |
-| /api/v1/projections | GET | 获取预测数据 | player_id, date_range, projection_type |
-| /api/v1/fantasy/optimal-lineup | POST | 生成最优阵容 | scoring_rules, constraints, available_players |
-| /api/v1/fantasy/matchups | GET | 获取对阵优势分析 | team_id, opponent_id, date |
+主要端点类别：
+- 球员数据端点
+- 比赛数据端点
+- 统计和预测端点
+- Fantasy优化端点
 
-#### 5.2.3 扩展性与集成
-- 支持批量操作 (Batch Requests)
-- 提供Webhook用于事件通知 (比如球员伤病更新)
-- 支持API Key认证用于第三方集成
-- 提供GraphQL端点作为REST API的替代选项，支持复杂查询
-
-### 5.3 权限控制
-
-- 基于IAM角色的服务访问控制
-- 基于策略的API授权
-- 资源级权限管理
+> **注意**: 详细的API设计和端点规范在API文档中提供。
 
 ## 6. 扩展性设计
 
 ### 6.1 垂直扩展
-
 - EC2实例类型升级
 - RDS实例扩容
 - ElastiCache节点扩容
 
 ### 6.2 水平扩展
-
 - EC2 Auto Scaling组
 - 读写分离 (RDS Read Replicas)
-- 分片策略考虑
+- Memcached节点扩容
 
 ### 6.3 功能扩展
-
 - 模块化设计便于添加新功能
 - 插件架构支持分析模型扩展
 - API版本控制支持兼容性
 
-## 7. 性能优化
+## 7. 性能优化策略
 
-### 7.1 数据库优化
+系统采用多层次性能优化策略：
 
-#### 7.1.1 PostgreSQL特有优化策略
-- **VACUUM操作计划**：
-  - 配置autovacuum以自动清理死元组
-  - 对大型表设置定制VACUUM计划，避免性能下降
-  - 定期执行VACUUM ANALYZE保持统计信息更新
-- **PostgreSQL特有索引类型**：
-  - GIN索引：用于全文搜索和复杂JSON查询
-  - GiST索引：适用于地理数据和复杂数据类型
-  - BRIN索引：适用于大型表上顺序数据的低开销索引
-  - 部分索引：针对常用过滤条件优化性能
-- **查询优化**：
-  - 使用EXPLAIN ANALYZE分析和优化查询计划
-  - 配置effective_cache_size和work_mem参数调整查询性能
-  - 使用并行查询功能加速大型数据集处理
-- **表分区**：
-  - 使用PostgreSQL声明式分区实现大表的高效管理
-  - 按日期范围分区时间序列数据（如比赛统计）
+1. **数据库优化**: 
+   - 索引设计和查询优化
+   - 物化视图加速复杂查询
+   - 适当的分区策略
+   
+   > 详见 [数据模型文档](3-database-schema.md) 中的性能优化章节
 
-#### 7.1.2 常规优化策略
-- 索引设计优化查询性能
-- 物化视图加速复杂查询
-- 统计信息收集和维护
+2. **缓存策略**:
+   - 多层次缓存架构
+   - API响应缓存
+   - 预计算结果缓存
+   
+   > 详见 [缓存策略文档](4-caching-strategy.md)
 
-### 7.2 缓存策略
-
-- 应用层缓存减少数据库负载
-- API响应缓存提高响应速度
-- 查询结果缓存避免重复计算
-
-### 7.3 计算优化
-
-- 批处理优化ETL性能
-- 并行处理利用多核资源
-- 资源分配匹配工作负载
+3. **计算优化**:
+   - 批处理优化
+   - 并行计算
+   - 资源分配优化
 
 ## 8. 安全考虑
 
-### 8.1 数据安全
+系统实施全面的安全策略，包括：
 
-- 静态加密 (S3, RDS)
-- 传输加密 (HTTPS/TLS)
-- 访问控制和审计
+1. **数据安全**:
+   - 静态加密 (S3, RDS)
+   - 传输加密 (HTTPS/TLS)
+   - 访问控制和审计
 
-### 8.2 身份验证和授权
+2. **身份验证和授权**:
+   - 多因素认证
+   - 基于角色的访问控制
+   - 最小权限原则
 
-- 多因素认证
-- 基于角色的访问控制
-- 最小权限原则
+3. **网络安全**:
+   - VPC隔离
+   - 安全组限制流量
+   - WAF保护Web应用
 
-### 8.3 网络安全
+> 详细的安全实施请参阅 [运维策略文档](5-operations.md) 中的安全章节。
 
-- VPC隔离
-- 安全组限制流量
-- WAF保护Web应用
+## 9. 系统限制与约束
 
-## 9. 运维考虑
+### 9.1 性能限制
+- 数据刷新频率: 球员数据最快每小时更新一次
+- 响应时间要求: API请求 < 200ms (95%); 复杂分析查询 < 3秒
+- 并发用户: 设计支持最多1000个并发用户
 
-### 9.1 监控和告警
+### 9.2 技术约束
+- 数据源限制: 依赖公开可用数据
+- AWS资源限制: 根据预算约束选择实例类型
+- 计划外维护窗口: 系统每月可能需要2小时维护时间
 
-详见 [operations.md](operations.md) 文档中的监控与告警部分。
+## 10. 与其他子系统的关系
 
-### 9.2 部署和CI/CD
+本架构文档提供了系统的整体视图，与其他专项文档的关系如下：
 
-- 持续集成/持续部署流程
-- 基础设施即代码 (Terraform/CloudFormation)
-- 蓝绿部署和回滚策略
+- **[ETL Pipeline文档](2-ETL-Pipeline.md)**: 详细说明数据采集和处理流程
+- **[数据模型文档](3-database-schema.md)**: 详细设计数据库模式和关系
+- **[缓存策略文档](4-caching-strategy.md)**: 详细说明多层缓存实施方案
+- **[运维策略文档](5-operations.md)**: 详细描述部署、监控和运维流程
+- **[技术栈决策文档](6-tech-stack-decisions.md)**: 详细说明技术选择理由
+- **[实施路线图](7-implementation-roadmap.md)**: 详细规划开发和部署时间线
 
-### 9.3 容灾和备份
+## 11. 结论
 
-详见 [operations.md](operations.md) 文档中的高可用架构部分。
+NBA Fantasy Analytics Platform的架构设计提供了一个全面、可扩展的Fantasy篮球分析解决方案框架。通过分层架构和模块化设计，系统能够有效地处理数据采集、转换、预测分析和可视化呈现的整个流程。选择的技术栈满足了性能需求，同时为未来的扩展和优化提供了灵活性。
 
-## 10. 系统限制与约束
-
-### 10.1 性能限制
-
-- **数据刷新频率**: 球员数据最快每小时更新一次，实时比分不在MVP范围内
-- **响应时间要求**: 
-  - API请求: 95%的请求 < 200ms
-  - 复杂分析查询: < 3秒
-  - 预测模型生成: < 10秒
-- **并发用户**: 设计支持最多1000个并发用户
-- **数据规模**:
-  - 球员历史数据: ~500MB
-  - 比赛数据: ~5GB/赛季
-  - 总存储需求: < 50GB (不含备份)
-
-### 10.2 技术约束
-
-- **数据源限制**: 依赖公开可用数据，遵守Basketball-Reference的robots.txt规则
-- **AWS资源限制**: 根据成本考虑，使用t3.medium及以下实例类型
-- **Power BI限制**: 使用Power BI Pro版本，受限于8GB数据集大小
-- **计划外维护窗口**: 系统每月可能需要2小时维护时间
-
-### 10.3 合规与法律约束
-
-- **数据使用**: 确保遵守数据源的使用条款，仅用于个人和教育目的
-- **用户数据**: 实施适当的用户数据保护措施，符合基本隐私规定
-- **第三方API**: 受限于第三方API的使用限制和费率限制
-
-### 10.4 成本约束
-
-- **总体预算**: AWS资源月度预算控制在$200以内
-- **成本优化**: 非高峰期自动缩减资源，使用保留实例降低成本
-- **存储策略**: 冷数据迁移到更低成本存储级别
+该系统基于AWS云服务构建，利用其高可用性和弹性扩展能力，结合合理的安全措施和性能优化策略，确保了系统的可靠性和可维护性。虽然受到一定的技术和成本约束，但通过明确的演进路径，系统可以逐步扩展功能和提高性能，以满足不断变化的用户需求。

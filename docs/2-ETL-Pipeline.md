@@ -1,14 +1,4 @@
-<think>让我按照前面分析的策略对2-ETL-Pipeline.md文档进行更新。我会首先替换所有涉及数据库技术选择的描述，然后增加SQLAlchemy ORM相关内容，接着更新PostgreSQL特有的功能和优化策略，最后确保整体一致性。
-
-主要需要更新的部分包括：
-1. 将流程图中"PostgreSQL/MS SQL Database"改为"PostgreSQL Database"
-2. 在介绍中明确指出使用PostgreSQL和SQLAlchemy
-3. 更新4.3节的加载代码示例，添加SQLAlchemy ORM示例代码
-4. 增加PostgreSQL特有功能的描述和使用方法
-5. 添加物化视图和刷新策略的PostgreSQL语法示例
-6. 调整Airflow与PostgreSQL集成的具体设置
-
-我会保持文档的整体结构不变，只进行必要的技术栈相关更新。</think># NBA Fantasy Analytics Platform: ETL Pipeline
+# NBA Fantasy Analytics Platform: ETL Pipeline
 
 ## 执行摘要
 
@@ -20,7 +10,9 @@
 - **质量保证**: 内置数据验证和质量检查机制
 - **可追溯性**: 跟踪数据来源和转换历史
 
-本文档详细描述了NBA Fantasy Analytics Platform的ETL (Extract, Transform, Load) 流程，专注于使用Python作为主要ETL工具，PostgreSQL作为数据库，以及SQLAlchemy作为ORM层。
+本文档详细描述了NBA Fantasy Analytics Platform的ETL (Extract, Transform, Load) 流程，专注于使用Python作为主要ETL工具，PostgreSQL作为数据库，以及SQLAlchemy作为ORM层。本文档是[架构设计](1-architecture.md)的具体实现部分，负责详细说明数据采集、转换和加载的过程。
+
+> **文档关系**: 本ETL文档是[架构设计](1-architecture.md)中提到的数据采集层和ETL层的详细实现说明。技术选择的理由详见[技术栈决策文档](6-tech-stack-decisions.md)，数据库结构的详细设计见[数据模型文档](3-database-schema.md)。
 
 ## 1. ETL流程概览
 
@@ -125,6 +117,8 @@ def extract_player_data(player_id):
 - **数据标准化**: 统一单位、命名和时间格式
 - **数据增强**: 计算附加指标和统计数据
 - **维度建模**: 构建星型模式用于分析
+
+> **注意**: 关于星型模式的详细数据库设计，请参考[数据模型文档](3-database-schema.md)。
 
 ### 3.2 转换流程
 1. **球员数据转换**:
@@ -626,6 +620,8 @@ data_ready_sensor >> process_player_data_task
 - 长事务和锁等待
 - 索引使用情况
 
+> **注意**: 全面的系统监控策略请参阅[运维策略文档](5-operations.md)的"监控告警和日志管理"部分。
+
 ### 7.3 警报配置
 - 触发条件和阈值
 - 通知渠道和接收者
@@ -731,6 +727,8 @@ $$ LANGUAGE plpgsql;
 SELECT cron.schedule('0 3 * * *', 'SELECT refresh_materialized_views()');
 ```
 
+> **注意**: 关于缓存策略的更多详细信息，请参阅[缓存策略文档](4-caching-strategy.md)的"PostgreSQL物化视图"部分。
+
 ## 8. 灾难恢复和容错设计
 
 ### 8.1 备份策略
@@ -772,3 +770,17 @@ $$ LANGUAGE plpgsql;
 -- 设置每周运行一次
 SELECT cron.schedule('0 2 * * 0', 'SELECT maintenance_vacuum_analyze()');
 ```
+
+> **注意**: 有关完整的数据库备份恢复策略和高可用架构，请参阅[运维策略文档](5-operations.md)的相关章节。
+
+## 9. 小结与展望
+
+本ETL流程文档详细描述了NBA Fantasy Analytics Platform的数据处理流程，涵盖了从提取、转换到加载的每个方面，以及数据质量管理、工作流编排、监控和灾难恢复策略。通过遵循此设计，我们确保了数据的完整性、准确性和及时性，为后续的分析和预测功能提供了坚实的基础。
+
+ETL流程的未来发展方向包括：
+1. 添加更多数据源以提供更全面的NBA数据
+2. 实现更复杂的特征工程，提高预测模型的准确性
+3. 优化性能，减少处理时间和资源消耗
+4. 增强数据血缘追踪和质量监控机制
+
+后续实施步骤详见[实施路线图](7-implementation-roadmap.md)。

@@ -1,15 +1,10 @@
-<think>我需要更新运维策略文档(5-operations.md)，将其调整为支持PostgreSQL+SQLAlchemy+Python技术栈。从提供的建议，我需要关注以下几个方面：
-
-1. 高可用架构部分：添加PostgreSQL的特定高可用配置和复制选项
-2. 监控指标部分：添加PostgreSQL特有的监控指标
-3. 备份与恢复策略：更新为PostgreSQL特有的备份工具和技术
-4. 数据库维护：添加PostgreSQL特有的维护任务
-
-我将基于提供的原始文档进行这些修改。</think># NBA Fantasy Analytics Platform 运维策略
+# NBA Fantasy Analytics Platform 运维策略
 
 ## 执行摘要
 
 本文档定义了NBA Fantasy Analytics Platform的全面运维策略，涵盖环境管理、高可用设计、监控告警、安全策略、日常运维流程以及成本优化方案。设计以AWS云服务为基础，采用PostgreSQL、SQLAlchemy和Python技术栈，旨在提供稳定、安全、高效的服务运行环境，同时优化资源使用和成本效益。本策略支持系统的可靠性、可用性、可维护性和可扩展性目标，为用户提供高质量的Fantasy篮球分析服务。
+
+> **文档关系**: 本运维策略文档详细说明了[架构设计](1-architecture.md)中提到的部署和运维方案的具体实现。技术选择的详细理由请参考[技术栈决策文档](6-tech-stack-decisions.md)，数据库维护的具体操作与数据库设计相关内容请参考[数据模型文档](3-database-schema.md)，数据处理流程管理请参考[ETL Pipeline文档](2-ETL-Pipeline.md)，缓存配置和维护细节请参考[缓存策略文档](4-caching-strategy.md)。团队开发规范、Git工作流程和开发者相关指南请参考[开发规范文档](8-development-guidelines.md)，该文档与本文档互为补充，分别从开发者和运维角度提供指导。
 
 ## 1. 环境分离策略
 
@@ -81,42 +76,71 @@ flowchart TD
 
 系统采用AWS多可用区设计，确保服务高可用性和灾难恢复能力。
 
+> **注意**: 本章节详细说明了[架构设计](1-architecture.md)中"部署架构"章节所描述的高可用性和容错策略的具体实现方案。
+
 ### 2.1 高可用架构图
 
 ```mermaid
 flowchart TD
-    subgraph "Region A - Primary"
-        subgraph "Availability Zone 1"
-            A1[EC2 Instance 1] --> B1[ALB - Zone 1]
-            C1[RDS PostgreSQL Primary] --> D1[Redis Primary]
+    subgraph "Production"
+        subgraph "Multi-AZ Deployment"
+            subgraph "Availability Zone A"
+                A1[EC2 Web/API 1] 
+                A2[EC2 Web/API 2]
+                B1[EC2 Workers 1]
+                C1[RDS PostgreSQL Primary]
+                D1[Memcached Primary]
+            end
+            
+            subgraph "Availability Zone B"
+                E1[EC2 Web/API 3]
+                E2[EC2 Web/API 4]
+                F1[EC2 Workers 2]
+                C2[RDS PostgreSQL Standby]
+                D2[Memcached Replica]
+            end
+            
+            G[S3 Storage]
+            ALB[Application Load Balancer]
+            
+            ALB --> A1
+            ALB --> A2
+            ALB --> E1
+            ALB --> E2
+            
+            A1 --> C1
+            A2 --> C1
+            E1 --> C1
+            E2 --> C1
+            
+            A1 --> D1
+            A2 --> D1
+            E1 --> D1
+            E2 --> D1
+            
+            B1 --> C1
+            F1 --> C1
+            
+            C1 --> C2
+            D1 --> D2
         end
-        
-        subgraph "Availability Zone 2"
-            A2[EC2 Instance 2] --> B2[ALB - Zone 2]
-            C2[RDS PostgreSQL Standby] --> D2[Redis Replica]
-        end
-        
-        B1 --> E1[Application Load Balancer]
-        B2 --> E1
-        F1[S3 Bucket - Primary]
     end
     
-    subgraph "Region B - DR"
-        subgraph "Availability Zone 1"
-            G1[EC2 Instance DR] --> H1[ALB DR - Zone 1]
-            I1[RDS PostgreSQL DR] --> J1[Redis DR]
+    subgraph "Disaster Recovery"
+        subgraph "DR Region"
+            H1[EC2 Web/API DR]
+            I1[RDS PostgreSQL DR]
+            J1[Memcached DR]
+            K1[S3 DR]
         end
-        
-        H1 --> K1[Application Load Balancer DR]
-        L1[S3 Bucket - DR]
     end
     
-    F1 -.->|Cross-Region Replication| L1
+    G -.->|Cross-Region Replication| K1
     C1 -.->|PostgreSQL Logical Replication| I1
     
     subgraph "Global Resources"
-        M[Route 53] --> E1
-        M -->|Failover| K1
+        M[Route 53] --> ALB
+        M -->|Failover| H1
         N[CloudFront CDN]
     end
     
@@ -135,7 +159,7 @@ flowchart TD
 | PostgreSQL数据库 | RDS PostgreSQL Multi-AZ部署 | 自动故障切换到备用实例，通常在60-120秒内完成 |
 | PostgreSQL复制 | 同步复制到备用实例 + WAL日志传输 | RDS自动管理复制和故障切换 |
 | 跨区域数据库 | PostgreSQL逻辑复制 | 主区域故障时可升级灾备区域数据库为主数据库 |
-| 缓存 | ElastiCache Redis集群多节点 | 自动故障切换到副本节点 |
+| 缓存 | ElastiCache for Memcached（利用AWS Free Tier）| 可配置多节点，应用层处理节点失效 |
 | 存储 | S3跨区域复制 | 通过Route 53故障转移路由 |
 | API服务 | EC2 Auto Scaling + 多可用区部署 | ALB健康检查，自动替换不健康实例 |
 
@@ -158,9 +182,9 @@ flowchart TD
 
 | 组件 | 基准容量 | 峰值容量 | 扩展触发条件 |
 |------|---------|---------|------------|
-| EC2 Web/API | 2x t3.medium | 最高8x t3.medium | CPU利用率>70%持续5分钟 |
-| RDS PostgreSQL | db.t3.large | 可升级到db.r5.xlarge | 内存利用率>80%，连接数>80%，I/O等待>10% |
-| ElastiCache | cache.t3.medium(2节点) | 可增加至4节点 | 内存利用率>75%持续15分钟 |
+| EC2 Web/API | 2x t3.micro (Free Tier) | 最高4x t3.micro | CPU利用率>70%持续5分钟 |
+| RDS PostgreSQL | db.t3.micro (Free Tier) | 可升级到db.t3.small | 内存利用率>80%，连接数>80%，I/O等待>10% |
+| ElastiCache | cache.t3.micro (Free Tier) | 可增加节点 | 内存利用率>75%持续15分钟 |
 | S3存储 | 预估50GB/月增长 | 根据数据增长弹性扩展 | - |
 
 ## 3. 监控与警报
@@ -299,6 +323,98 @@ flowchart TD
 - 部署前自动化测试验证
 - 部署后监控与验证
 
+#### 5.1.1 GitHub Actions CI/CD 配置
+
+> **注意**: 本节详细说明了CI/CD的运维实现细节。关于开发者如何使用和遵循CI/CD流程的指南，请参考[开发规范文档](8-development-guidelines.md)的"CI/CD集成"章节。
+
+GitHub Actions用于自动化测试、构建和部署过程，确保代码质量和部署效率。配置遵循现代DevOps最佳实践，包括并行测试、依赖缓存、安全扫描和灰度部署策略。
+
+```yaml
+name: Build and Deploy
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    - cron: '0 2 * * 1'  # 每周一凌晨2点运行安全扫描
+
+env:
+  PYTHON_VERSION: '3.10'
+  POSTGRES_VERSION: '14'
+  MEMCACHED_VERSION: '1.6'
+  NODE_VERSION: '18'
+  TERRAFORM_VERSION: '1.3'
+
+jobs:
+  lint:
+    name: 代码质量检查
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      # ... 代码质量检查步骤
+
+  security:
+    name: 安全扫描
+    runs-on: ubuntu-latest
+    steps:
+      # ... 安全扫描步骤
+
+  test:
+    name: 单元测试与集成测试
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:${{ env.POSTGRES_VERSION }}
+        # ... PostgreSQL测试服务配置
+    
+    strategy:
+      matrix:
+        test-group: [core, models, api, services]
+        # ... 测试矩阵配置
+    
+    steps:
+      # ... 测试执行步骤
+  
+  deploy-production:
+    name: 部署到生产环境
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    concurrency: production_environment
+    
+    steps:
+      # ... 生产环境部署步骤，包含以下关键流程:
+      # 1. 基础设施部署 (Terraform)
+      # 2. 数据库迁移预检
+      # 3. 执行灰度部署
+      # 4. 部署后测试验证
+      # 5. 部署通知和版本标记
+```
+
+**CI/CD 流程优化**:
+
+1. **并行化与加速**:
+   - 并行运行不同测试组，减少总体CI时间
+   - 使用依赖缓存加速构建过程
+   - Docker层缓存优化镜像构建速度
+
+2. **增强的质量控制**:
+   - 代码质量检查、安全扫描和测试分为独立作业
+   - 定期安全扫描(每周执行)
+   - 多重安全检查(代码扫描、依赖检查、容器漏洞扫描)
+
+3. **改进的部署策略**:
+   - 环境并发控制，防止同时多次部署
+   - 灰度部署策略，先部署金丝雀服务
+   - 数据库迁移预检和SQL预览
+   - 部署后自动化验证测试
+
 ### 5.2 变更管理
 
 - 变更审批流程
@@ -368,11 +484,8 @@ flowchart TD
   - 定期检查并优化慢查询
   - 调整PostgreSQL内存参数（shared_buffers, work_mem等）
   - 优化连接池配置与SQLAlchemy会话管理
-  
-- **维护窗口**:
-  - 预定的维护窗口（每月第一个周日凌晨2-4点）
-  - PostgreSQL次要版本升级规划
-  - 安全补丁管理策略
+
+> **注意**: 关于PostgreSQL数据库结构和索引设计的详细信息，请参考[数据模型文档](3-database-schema.md)。物化视图维护策略请参考[缓存策略文档](4-caching-strategy.md)中的相关章节。
 
 #### 5.5.2 PostgreSQL配置优化
 
@@ -456,3 +569,11 @@ SELECT pg_reload_conf();
 - 关键绩效指标监测与改进
 - 用户反馈收集与分析
 - 服务质量持续提升计划
+
+## 8. 结论
+
+本运维策略为NBA Fantasy Analytics Platform提供了全面的运维管理框架，涵盖了环境管理、高可用架构、监控告警、安全策略、运维流程、备份恢复、成本优化和持续改进等方面。通过实施本策略，可以确保系统的可靠性、可用性、安全性和高效性，为用户提供稳定且高性能的Fantasy篮球分析服务。
+
+随着系统规模和用户基数的增长，本策略将定期评审和更新，以适应不断变化的技术环境和业务需求。关键的运维指标将持续监控，以验证策略的有效性并指导未来的优化方向。
+
+> **实施规划**: 本运维策略将结合[实施路线图](7-implementation-roadmap.md)中的阶段规划逐步实施，确保各项运维措施与系统开发和部署进度保持同步。开发团队应同时参考[开发规范文档](8-development-guidelines.md)，确保开发实践与运维策略保持一致。
